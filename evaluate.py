@@ -458,7 +458,7 @@ def _fuzzy_score(a: str, b: str) -> float:
         return 0.0
     # Reject if the shorter string is too small relative to the longer
     min_len, max_len = min(len(na), len(nb)), max(len(na), len(nb))
-    if min_len < 3 and max_len > 4:
+    if min_len < 4 and max_len > 5:
         return 0.0
     try:
         from rapidfuzz import fuzz
