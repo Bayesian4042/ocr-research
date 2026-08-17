@@ -65,7 +65,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def sanitize_filename(name: str) -> str:
-    stem = Path(name).stem
+    # Strip known file extensions explicitly (Path.stem mis-handles dates like "5.1.2023")
+    stem = name
+    for ext in (".pdf", ".xlsx", ".xls", ".csv", ".docx", ".doc", ".png", ".jpg", ".tiff"):
+        if stem.lower().endswith(ext):
+            stem = stem[: -len(ext)]
+            break
     return re.sub(r"[^a-zA-Z0-9_\-]", "_", stem)
 
 
