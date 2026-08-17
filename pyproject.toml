@@ -1,0 +1,28 @@
+[project]
+name = "ocr-research"
+version = "0.1.0"
+description = "OCR benchmark suite for metadata and table extraction"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "paddleocr>=3.7",
+    "paddlepaddle",
+    "paddlex[ocr]",
+    "pymupdf",
+]
+
+[project.optional-dependencies]
+azure = ["azure-ai-documentintelligence", "azure-core"]
+mistral = ["mistralai"]
+olmocr = ["olmocr"]
+monkeyocr = ["requests"]
+eval = ["rapidfuzz"]
+all = [
+    "azure-ai-documentintelligence",
+    "azure-core",
+    "mistralai",
+    "olmocr",
+    "requests",
+    "rapidfuzz",
+]

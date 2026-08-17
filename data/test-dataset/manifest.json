@@ -1,0 +1,38 @@
+{
+  "description": "OCR benchmark test dataset - 18 curated PDFs across 3 difficulty categories",
+  "categories": {
+    "orientation": {
+      "description": "Skew, rotation, and nasty layout cases",
+      "files": [
+        "Dugan.Ecolab 2023 LTL RFP Primary Rate Card Executed.pdf",
+        "US Special 3-3 Zip 2023 LTL RFP Primary Rate Card Executed.pdf",
+        "Midland Transport_MDLD_LTL_AMD_Rates_9.20.2023.pdf",
+        "Old Dominion_ODFL_MSA_8.3.2023.pdf",
+        "Skyline_SKYT_TL_AMD_McDonough OB_10.13.2023.pdf",
+        "Dedicated Logistics_DCLH_TL_AMD_Backup Rates_11.29.2022.pdf"
+      ]
+    },
+    "scanned": {
+      "description": "True scanned / image-only PDFs",
+      "files": [
+        "Dedicated Delivery Professionals 2023 LTL RFP Primary Rate Card Executed.pdf",
+        "Armour Transportation Systems 2022-2023 LTL Contract Executed.pdf",
+        "Dugan.Ecolab 2023 MSA signed 4.7.2023 (2).pdf",
+        "Dupre_DUPR_MSA_3.21.2017 (1).pdf",
+        "AIT_TL_MSA_6.2.2015.pdf",
+        "Posse - Ecolab MSA.pdf"
+      ]
+    },
+    "complex-tables": {
+      "description": "Dense / complex table layouts",
+      "files": [
+        "Saia.Ecolab 2023 LTL RFP Primary Rate Card Executed.pdf",
+        "Pitt Ohio 2023 LTL RFP Primary Rate Card Executed.pdf",
+        "Dohrn.Ecolab 2023 LTL RFP Primary Rate Card Executed.pdf",
+        "ABF_ABFS_LTL_AMD_Secondary Award Rate Card_5.1.2023.pdf",
+        "R&L_RNLO_LTL_AMD_2023 RFP Secondary_04.15.2023.pdf",
+        "Oceanex_OCXI_FCL_AMD_Rate Sheet_9.22.2023.pdf"
+      ]
+    }
+  }
+}
