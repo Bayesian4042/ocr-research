@@ -1546,6 +1546,8 @@ dependencies = [
     { name = "paddlepaddle" },
     { name = "paddlex", extra = ["ocr"] },
     { name = "pymupdf" },
+    { name = "pypdf" },
+    { name = "requests" },
 ]
 
 [package.optional-dependencies]
@@ -1554,6 +1556,8 @@ all = [
     { name = "azure-core" },
     { name = "mistralai" },
     { name = "olmocr" },
+    { name = "pymupdf" },
+    { name = "pypdf" },
     { name = "rapidfuzz" },
     { name = "requests" },
 ]
@@ -1561,11 +1565,23 @@ azure = [
     { name = "azure-ai-documentintelligence" },
     { name = "azure-core" },
 ]
+cloud = [
+    { name = "azure-ai-documentintelligence" },
+    { name = "azure-core" },
+    { name = "mistralai" },
+    { name = "pymupdf" },
+    { name = "pypdf" },
+    { name = "rapidfuzz" },
+]
 eval = [
     { name = "rapidfuzz" },
 ]
+glm = [
+    { name = "pypdf" },
+]
 mistral = [
     { name = "mistralai" },
+    { name = "pymupdf" },
 ]
 monkeyocr = [
     { name = "requests" },
@@ -1578,9 +1594,12 @@ olmocr = [
 requires-dist = [
     { name = "azure-ai-documentintelligence", marker = "extra == 'all'" },
     { name = "azure-ai-documentintelligence", marker = "extra == 'azure'" },
+    { name = "azure-ai-documentintelligence", marker = "extra == 'cloud'" },
     { name = "azure-core", marker = "extra == 'all'" },
     { name = "azure-core", marker = "extra == 'azure'" },
+    { name = "azure-core", marker = "extra == 'cloud'" },
     { name = "mistralai", marker = "extra == 'all'" },
+    { name = "mistralai", marker = "extra == 'cloud'" },
     { name = "mistralai", marker = "extra == 'mistral'" },
     { name = "numpy" },
     { name = "olmocr", marker = "extra == 'all'" },
@@ -1589,12 +1608,21 @@ requires-dist = [
     { name = "paddlepaddle" },
     { name = "paddlex", extras = ["ocr"] },
     { name = "pymupdf" },
+    { name = "pymupdf", marker = "extra == 'all'" },
+    { name = "pymupdf", marker = "extra == 'cloud'" },
+    { name = "pymupdf", marker = "extra == 'mistral'" },
+    { name = "pypdf" },
+    { name = "pypdf", marker = "extra == 'all'" },
+    { name = "pypdf", marker = "extra == 'cloud'" },
+    { name = "pypdf", marker = "extra == 'glm'" },
     { name = "rapidfuzz", marker = "extra == 'all'" },
+    { name = "rapidfuzz", marker = "extra == 'cloud'" },
     { name = "rapidfuzz", marker = "extra == 'eval'" },
+    { name = "requests" },
     { name = "requests", marker = "extra == 'all'" },
     { name = "requests", marker = "extra == 'monkeyocr'" },
 ]
-provides-extras = ["azure", "mistral", "olmocr", "monkeyocr", "eval", "all"]
+provides-extras = ["azure", "mistral", "glm", "olmocr", "monkeyocr", "eval", "cloud", "all"]
 
 [[package]]
 name = "olmocr"
