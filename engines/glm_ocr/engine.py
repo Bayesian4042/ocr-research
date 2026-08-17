@@ -23,16 +23,25 @@ MAX_PAGES_PER_CALL = 100
 def _split_pdf(pdf_bytes: bytes, max_pages: int) -> list[bytes]:
     """Split a PDF into chunks of at most *max_pages* pages.
 
-    Returns a list of PDF byte strings. If the PDF is already within limits
-    or PyPDF is unavailable, returns the original bytes as a single chunk.
+    Returns a list of PDF byte strings. If the PDF is already within limits,
+    encrypted, or PyPDF is unavailable, returns the original bytes as a single chunk.
     """
     try:
         from pypdf import PdfReader, PdfWriter
     except ImportError:
         return [pdf_bytes]
 
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    total = len(reader.pages)
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        if reader.is_encrypted:
+            try:
+                reader.decrypt("")
+            except Exception:
+                return [pdf_bytes]
+        total = len(reader.pages)
+    except Exception:
+        return [pdf_bytes]
+
     if total <= max_pages:
         return [pdf_bytes]
 
@@ -65,6 +74,7 @@ class GlmOCREngine(BaseEngine):
         mime = "application/pdf" if suffix == "pdf" else f"image/{suffix}"
         data_uri = f"data:{mime};base64,{b64}"
 
+        # 10 min timeout -- large chunks can take a while
         resp = requests.post(
             API_URL,
             headers={
@@ -72,7 +82,7 @@ class GlmOCREngine(BaseEngine):
                 "Content-Type": "application/json",
             },
             json={"model": MODEL, "file": data_uri},
-            timeout=300,
+            timeout=600,
         )
         resp.raise_for_status()
         return resp.json()
