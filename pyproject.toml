@@ -10,19 +10,32 @@ dependencies = [
     "paddlepaddle",
     "paddlex[ocr]",
     "pymupdf",
+    "pypdf",
+    "requests",
 ]
 
 [project.optional-dependencies]
 azure = ["azure-ai-documentintelligence", "azure-core"]
-mistral = ["mistralai"]
+mistral = ["mistralai", "pymupdf"]
+glm = ["pypdf"]
 olmocr = ["olmocr"]
 monkeyocr = ["requests"]
 eval = ["rapidfuzz"]
+cloud = [
+    "azure-ai-documentintelligence",
+    "azure-core",
+    "mistralai",
+    "pymupdf",
+    "pypdf",
+    "rapidfuzz",
+]
 all = [
     "azure-ai-documentintelligence",
     "azure-core",
     "mistralai",
     "olmocr",
+    "pymupdf",
+    "pypdf",
     "requests",
     "rapidfuzz",
 ]
