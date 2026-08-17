@@ -453,12 +453,18 @@ def _is_date_field(field_name: str) -> bool:
 
 def _fuzzy_score(a: str, b: str) -> float:
     """Normalized similarity between two strings."""
+    na, nb = _normalize(a), _normalize(b)
+    if not na or not nb:
+        return 0.0
+    # Reject if the shorter string is too small relative to the longer
+    min_len, max_len = min(len(na), len(nb)), max(len(na), len(nb))
+    if min_len < 3 and max_len > 4:
+        return 0.0
     try:
         from rapidfuzz import fuzz
 
-        return fuzz.ratio(_normalize(a), _normalize(b)) / 100.0
+        return fuzz.ratio(na, nb) / 100.0
     except ImportError:
-        na, nb = _normalize(a), _normalize(b)
         if na == nb:
             return 1.0
         if na in nb or nb in na:
