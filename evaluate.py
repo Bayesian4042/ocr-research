@@ -862,23 +862,18 @@ def _write_evaluation_csv(
             "gt_carrier_name",
             f"{eng}_carrier_name",
             "carrier_match",
-            "carrier_source_text",
             "gt_scac",
             f"{eng}_scac",
             "scac_match",
-            "scac_source_text",
             "gt_mode",
             f"{eng}_mode",
             "mode_match",
-            "mode_source_text",
             "gt_effective_date",
             f"{eng}_effective_date",
             "effective_date_match",
-            "effective_date_source_text",
             "gt_end_date",
             f"{eng}_end_date",
             "end_date_match",
-            "end_date_source_text",
             "exact_rate",
             "fuzzy_rate",
             "tables_extracted",
@@ -896,11 +891,10 @@ def _write_evaluation_csv(
                 for fld in META_FIELDS:
                     gt_val = info["gt"].get(fld) or ""
                     ext_val = eng_info.get(f"{fld}_extracted") or ""
-                    source = eng_info.get(f"{fld}_source") or ""
                     exact = eng_info.get(f"{fld}_exact", False)
                     fuzzy_sc = eng_info.get(f"{fld}_fuzzy", 0.0)
                     match = _match_label(gt_val, exact, fuzzy_sc, ext_val)
-                    row.extend([gt_val, ext_val, match, source])
+                    row.extend([gt_val, ext_val, match])
 
                 exact_rate = eng_info.get("exact_rate")
                 fuzzy_rate = eng_info.get("fuzzy_rate")
