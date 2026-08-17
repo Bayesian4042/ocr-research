@@ -56,10 +56,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Limit number of PDFs per category",
     )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0,
+        help="Seconds to wait between documents (helps with API rate limits)",
+    )
     return parser.parse_args()
 
 
-def discover_pdfs(dataset_dir: Path, category: str | None, limit: int | None) -> dict[str, list[Path]]:
+def discover_pdfs(
+    dataset_dir: Path, category: str | None, limit: int | None
+) -> dict[str, list[Path]]:
     """Return {category: [pdf_paths]} for the test dataset."""
     categories = [category] if category else list(CATEGORIES)
     result: dict[str, list[Path]] = {}
@@ -71,8 +79,7 @@ def discover_pdfs(dataset_dir: Path, category: str | None, limit: int | None) ->
             continue
 
         pdfs = sorted(
-            p for p in cat_dir.iterdir()
-            if p.is_file() and p.suffix.lower() == ".pdf"
+            p for p in cat_dir.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"
         )
         if limit is not None:
             pdfs = pdfs[:limit]
@@ -92,6 +99,7 @@ def run_engine(
     engine: BaseEngine,
     pdfs_by_category: dict[str, list[Path]],
     output_dir: Path,
+    delay: float = 0,
 ) -> dict[str, Any]:
     """Run a single engine across all documents. Returns engine-level summary."""
     engine_dir = output_dir / engine.name
@@ -112,7 +120,10 @@ def run_engine(
     for category, pdf_paths in pdfs_by_category.items():
         cat_results: list[dict[str, Any]] = []
 
-        for pdf_path in pdf_paths:
+        for doc_idx, pdf_path in enumerate(pdf_paths):
+            if delay > 0 and doc_idx > 0:
+                time.sleep(delay)
+
             doc_stem = pdf_path.stem
             print(f"    [{engine.name}] {category}/{doc_stem}")
 
@@ -130,14 +141,16 @@ def run_engine(
             write_json(result_path, result_dict)
 
             cost_dict = doc_result.cost.to_dict() if doc_result.cost else None
-            cat_results.append({
-                "document": doc_stem,
-                "regions": len(doc_result.regions),
-                "tables": len(doc_result.tables),
-                "errors": len(doc_result.errors),
-                "timing": doc_result.timing,
-                "cost": cost_dict,
-            })
+            cat_results.append(
+                {
+                    "document": doc_stem,
+                    "regions": len(doc_result.regions),
+                    "tables": len(doc_result.tables),
+                    "errors": len(doc_result.errors),
+                    "timing": doc_result.timing,
+                    "cost": cost_dict,
+                }
+            )
 
             engine_summary["total_documents"] += 1
             engine_summary["total_regions"] += len(doc_result.regions)
@@ -200,7 +213,7 @@ def main() -> None:
             continue
 
         t0 = time.perf_counter()
-        summary = run_engine(engine, pdfs_by_category, args.output)
+        summary = run_engine(engine, pdfs_by_category, args.output, delay=args.delay)
         summary["wall_time_s"] = time.perf_counter() - t0
         all_summaries.append(summary)
 
@@ -219,11 +232,14 @@ def main() -> None:
         print()
 
     # Write combined summary
-    write_json(args.output / "summary.json", {
-        "engines": all_summaries,
-        "dataset": str(args.dataset),
-        "total_documents_per_engine": total_pdfs,
-    })
+    write_json(
+        args.output / "summary.json",
+        {
+            "engines": all_summaries,
+            "dataset": str(args.dataset),
+            "total_documents_per_engine": total_pdfs,
+        },
+    )
 
     print("Benchmark complete. Results saved to:", args.output)
 
