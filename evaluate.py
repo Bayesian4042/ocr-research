@@ -31,7 +31,9 @@ CSV_FIELD_MAP = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate OCR benchmark results against ground truth")
+    parser = argparse.ArgumentParser(
+        description="Evaluate OCR benchmark results against ground truth"
+    )
     parser.add_argument(
         "--benchmark-dir",
         type=Path,
@@ -68,7 +70,17 @@ def parse_args() -> argparse.Namespace:
 def sanitize_filename(name: str) -> str:
     # Strip known file extensions explicitly (Path.stem mis-handles dates like "5.1.2023")
     stem = name
-    for ext in (".pdf", ".xlsx", ".xls", ".csv", ".docx", ".doc", ".png", ".jpg", ".tiff"):
+    for ext in (
+        ".pdf",
+        ".xlsx",
+        ".xls",
+        ".csv",
+        ".docx",
+        ".doc",
+        ".png",
+        ".jpg",
+        ".tiff",
+    ):
         if stem.lower().endswith(ext):
             stem = stem[: -len(ext)]
             break
@@ -204,8 +216,11 @@ def score_metadata(
             continue
 
         engine_value = engine_meta.get(field)
+        source_text = None
         if engine_value is None:
-            engine_value = _search_in_regions(engine_result, str(gt_value), field)
+            search_result = _search_in_regions(engine_result, str(gt_value), field)
+            if search_result is not None:
+                engine_value, source_text = search_result
 
         if engine_value is not None:
             exact = _normalize(str(engine_value)) == _normalize(str(gt_value))
@@ -219,6 +234,7 @@ def score_metadata(
             scores["fields"][field] = {
                 "gt": gt_value,
                 "extracted": engine_value,
+                "source_text": source_text,
                 "exact_match": exact,
                 "fuzzy_score": fuzzy,
             }
@@ -226,13 +242,18 @@ def score_metadata(
             scores["fields"][field] = {
                 "gt": gt_value,
                 "extracted": None,
+                "source_text": None,
                 "exact_match": False,
                 "fuzzy_score": 0.0,
             }
 
     scorable = scores["total_fields"] - scores["missing_gt"]
-    scores["exact_match_rate"] = scores["exact_matches"] / scorable if scorable > 0 else None
-    scores["fuzzy_match_rate"] = scores["fuzzy_matches"] / scorable if scorable > 0 else None
+    scores["exact_match_rate"] = (
+        scores["exact_matches"] / scorable if scorable > 0 else None
+    )
+    scores["fuzzy_match_rate"] = (
+        scores["fuzzy_matches"] / scorable if scorable > 0 else None
+    )
 
     return scores
 
@@ -264,18 +285,22 @@ def score_tables(
         best_match = _find_best_table_match(engine_tables, gt_table)
 
         if best_match is None:
-            scores["table_scores"].append({
-                "gt_page": gt_page,
-                "gt_headers": gt_headers,
-                "status": "not_found",
-                "header_accuracy": 0.0,
-                "row_count_accuracy": 0.0,
-            })
+            scores["table_scores"].append(
+                {
+                    "gt_page": gt_page,
+                    "gt_headers": gt_headers,
+                    "status": "not_found",
+                    "header_accuracy": 0.0,
+                    "row_count_accuracy": 0.0,
+                }
+            )
             continue
 
         # Score headers
         ext_headers = best_match.get("headers", [])
-        header_accuracy = _header_overlap(gt_headers, ext_headers) if gt_headers else None
+        header_accuracy = (
+            _header_overlap(gt_headers, ext_headers) if gt_headers else None
+        )
 
         # Score row count
         ext_row_count = best_match.get("row_count", 0)
@@ -287,18 +312,22 @@ def score_tables(
 
         # Score sample rows text similarity
         gt_samples = gt_table.get("sample_rows", [])
-        cell_similarity = _score_sample_rows(gt_samples, best_match) if gt_samples else None
+        cell_similarity = (
+            _score_sample_rows(gt_samples, best_match) if gt_samples else None
+        )
 
-        scores["table_scores"].append({
-            "gt_page": gt_page,
-            "gt_headers": gt_headers,
-            "ext_headers": ext_headers,
-            "header_accuracy": header_accuracy,
-            "gt_row_count": gt_row_count,
-            "ext_row_count": ext_row_count,
-            "row_count_accuracy": row_accuracy,
-            "cell_text_similarity": cell_similarity,
-        })
+        scores["table_scores"].append(
+            {
+                "gt_page": gt_page,
+                "gt_headers": gt_headers,
+                "ext_headers": ext_headers,
+                "header_accuracy": header_accuracy,
+                "gt_row_count": gt_row_count,
+                "ext_row_count": ext_row_count,
+                "row_count_accuracy": row_accuracy,
+                "cell_text_similarity": cell_similarity,
+            }
+        )
 
     # Aggregate
     valid_header_scores = [
@@ -313,7 +342,9 @@ def score_tables(
     ]
 
     scores["avg_header_accuracy"] = (
-        sum(valid_header_scores) / len(valid_header_scores) if valid_header_scores else None
+        sum(valid_header_scores) / len(valid_header_scores)
+        if valid_header_scores
+        else None
     )
     scores["avg_row_count_accuracy"] = (
         sum(valid_row_scores) / len(valid_row_scores) if valid_row_scores else None
@@ -328,28 +359,46 @@ def _normalize(text: str) -> str:
 
 # Date formats to try when parsing GT and OCR dates
 _DATE_FORMATS = [
-    "%m.%d.%Y",    # 11.29.2022
-    "%m/%d/%Y",    # 11/29/2022
-    "%m-%d-%Y",    # 11-29-2022
-    "%m.%d.%y",    # 11.29.22
-    "%m/%d/%y",    # 11/29/22
-    "%B %d, %Y",   # November 29, 2022
-    "%b %d, %Y",   # Nov 29, 2022
+    "%m.%d.%Y",  # 11.29.2022
+    "%m/%d/%Y",  # 11/29/2022
+    "%m-%d-%Y",  # 11-29-2022
+    "%m.%d.%y",  # 11.29.22
+    "%m/%d/%y",  # 11/29/22
+    "%B %d, %Y",  # November 29, 2022
+    "%b %d, %Y",  # Nov 29, 2022
     "%b. %d, %Y",  # Nov. 29, 2022
-    "%d %B %Y",    # 29 November 2022
-    "%d %b %Y",    # 29 Nov 2022
-    "%Y-%m-%d",    # 2022-11-29
-    "%Y/%m/%d",    # 2022/11/29
-    "%m.%d.%Y",    # 04.15.2023
+    "%d %B %Y",  # 29 November 2022
+    "%d %b %Y",  # 29 Nov 2022
+    "%Y-%m-%d",  # 2022-11-29
+    "%Y/%m/%d",  # 2022/11/29
+    "%m.%d.%Y",  # 04.15.2023
 ]
 
 _MONTH_NAMES = {
-    "january": 1, "february": 2, "march": 3, "april": 4,
-    "may": 5, "june": 6, "july": 7, "august": 8,
-    "september": 9, "october": 10, "november": 11, "december": 12,
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4,
-    "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9,
-    "oct": 10, "nov": 11, "dec": 12,
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "sept": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
 }
 
 
@@ -369,9 +418,7 @@ def _extract_dates_from_text(text: str) -> list[datetime]:
     dates: list[datetime] = []
 
     # Numeric patterns: M/D/YYYY, M.D.YYYY, M-D-YYYY, YYYY-MM-DD
-    for m in re.finditer(
-        r"\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b", text
-    ):
+    for m in re.finditer(r"\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b", text):
         parsed = _parse_date(m.group(0))
         if parsed:
             dates.append(parsed)
@@ -408,6 +455,7 @@ def _fuzzy_score(a: str, b: str) -> float:
     """Normalized similarity between two strings."""
     try:
         from rapidfuzz import fuzz
+
         return fuzz.ratio(_normalize(a), _normalize(b)) / 100.0
     except ImportError:
         na, nb = _normalize(a), _normalize(b)
@@ -420,8 +468,11 @@ def _fuzzy_score(a: str, b: str) -> float:
 
 def _search_date_in_regions(
     result: dict[str, Any], gt_date_str: str
-) -> str | None:
-    """Search for a date value in OCR regions using date normalization."""
+) -> tuple[str, str] | None:
+    """Search for a date value in OCR regions using date normalization.
+
+    Returns (matched_value, source_region_snippet) or None.
+    """
     gt_date = _parse_date(gt_date_str)
     if gt_date is None:
         return None
@@ -432,18 +483,17 @@ def _search_date_in_regions(
         found_dates = _extract_dates_from_text(text)
         for d in found_dates:
             if d.date() == gt_date.date():
-                return gt_date_str
+                return gt_date_str, text[:200]
     return None
 
 
 def _search_in_regions(
     result: dict[str, Any], target: str, field_name: str = ""
-) -> str | None:
+) -> tuple[str, str] | None:
     """Search for a target string in OCR regions.
 
     For date fields, uses date normalization to match across formats.
-    Returns the target value itself if found (not the full region), so that
-    exact-match scoring works correctly.
+    Returns (matched_value, source_region_snippet) or None.
     """
     if _is_date_field(field_name):
         date_match = _search_date_in_regions(result, target)
@@ -453,7 +503,7 @@ def _search_in_regions(
     target_norm = _normalize(target)
     regions = result.get("regions", [])
 
-    best_match: str | None = None
+    best_match_text: str | None = None
     best_score = 0.0
 
     for region in regions:
@@ -461,18 +511,18 @@ def _search_in_regions(
         text_norm = _normalize(text)
 
         if target_norm == text_norm:
-            return target
+            return target, text[:200]
 
         if target_norm in text_norm:
-            return target
+            return target, text[:200]
 
         score = _fuzzy_score(target, text)
         if score > best_score:
             best_score = score
-            best_match = text
+            best_match_text = text
 
-    if best_score >= 0.6:
-        return best_match
+    if best_score >= 0.6 and best_match_text is not None:
+        return best_match_text, best_match_text[:200]
 
     return None
 
@@ -554,13 +604,20 @@ def main() -> None:
     args = parse_args()
 
     if not args.benchmark_dir.exists():
-        print(f"ERROR: Benchmark directory not found: {args.benchmark_dir}", file=sys.stderr)
+        print(
+            f"ERROR: Benchmark directory not found: {args.benchmark_dir}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     gt_data = load_ground_truth(args.gt_csv_dir, args.ground_truth_dir)
     if not gt_data:
-        print(f"WARN: No ground truth found in {args.gt_csv_dir} or {args.ground_truth_dir}")
-        print("Add a metadata CSV under data/gt/ (file_name, carrier_inferred, scac_inferred, ...).")
+        print(
+            f"WARN: No ground truth found in {args.gt_csv_dir} or {args.ground_truth_dir}"
+        )
+        print(
+            "Add a metadata CSV under data/gt/ (file_name, carrier_inferred, scac_inferred, ...)."
+        )
     else:
         csv_count = sum(1 for v in gt_data.values() if v.get("metadata"))
         print(f"Loaded {len(gt_data)} ground-truth entries ({csv_count} with metadata)")
@@ -645,10 +702,18 @@ def main() -> None:
         ]
 
         engine_scorecard["overall"] = {
-            "metadata_exact_match": sum(exact_rates) / len(exact_rates) if exact_rates else None,
-            "metadata_fuzzy_match": sum(fuzzy_rates) / len(fuzzy_rates) if fuzzy_rates else None,
-            "table_header_accuracy": sum(header_accs) / len(header_accs) if header_accs else None,
-            "table_row_count_accuracy": sum(row_accs) / len(row_accs) if row_accs else None,
+            "metadata_exact_match": (
+                sum(exact_rates) / len(exact_rates) if exact_rates else None
+            ),
+            "metadata_fuzzy_match": (
+                sum(fuzzy_rates) / len(fuzzy_rates) if fuzzy_rates else None
+            ),
+            "table_header_accuracy": (
+                sum(header_accs) / len(header_accs) if header_accs else None
+            ),
+            "table_row_count_accuracy": (
+                sum(row_accs) / len(row_accs) if row_accs else None
+            ),
         }
 
         write_json(args.output / f"{engine_name}_scorecard.json", engine_scorecard)
@@ -709,10 +774,12 @@ def _build_comparison(scorecards: list[dict[str, Any]]) -> dict[str, Any]:
     for sc in scorecards:
         engine = sc.get("engine", "unknown")
         overall = sc.get("overall", {})
-        rows.append({
-            "engine": engine,
-            **overall,
-        })
+        rows.append(
+            {
+                "engine": engine,
+                **overall,
+            }
+        )
 
     return {
         "comparison": rows,
@@ -729,11 +796,10 @@ def _write_evaluation_csv(
     gt_data: dict[str, dict[str, Any]],
     engine_names: list[str],
 ) -> None:
-    """Write a detailed CSV with per-file GT metadata and per-engine accuracy."""
+    """Write per-engine CSVs and a combined comparison CSV."""
     META_FIELDS = ["carrier_name", "scac", "mode", "effective_date", "end_date"]
 
     # Collect all evaluated documents across engines
-    # {doc_stem: {category, gt_fields, engine_scores}}
     doc_rows: dict[str, dict[str, Any]] = {}
 
     for sc in scorecards:
@@ -757,6 +823,7 @@ def _write_evaluation_csv(
                 for f in META_FIELDS:
                     detail = fields.get(f, {})
                     engine_info[f"{f}_extracted"] = detail.get("extracted")
+                    engine_info[f"{f}_source"] = detail.get("source_text")
                     engine_info[f"{f}_exact"] = detail.get("exact_match", False)
                     engine_info[f"{f}_fuzzy"] = detail.get("fuzzy_score", 0.0)
 
@@ -767,26 +834,99 @@ def _write_evaluation_csv(
                 engine_info["fuzzy_rate"] = (
                     meta["fuzzy_matches"] / scorable if scorable > 0 else None
                 )
-                engine_info["tables_extracted"] = doc_score["tables"]["extracted_table_count"]
+                engine_info["tables_extracted"] = doc_score["tables"][
+                    "extracted_table_count"
+                ]
 
                 doc_rows[doc_stem]["engines"][engine] = engine_info
 
-    # Build CSV headers
-    headers = ["file_name", "category"]
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _match_label(gt_val: str, exact: bool, fuzzy: float, ext_val: str) -> str:
+        if not gt_val:
+            return "NO_GT"
+        if exact:
+            return "EXACT"
+        if fuzzy >= 0.8:
+            return "FUZZY"
+        if ext_val:
+            return "PARTIAL"
+        return "MISS"
+
+    # --- Per-engine CSVs (GT vs Extracted side by side) ---
+    for eng in engine_names:
+        eng_csv = csv_path.parent / f"{eng}_evaluation.csv"
+        headers = [
+            "file_name",
+            "category",
+            "gt_carrier_name",
+            f"{eng}_carrier_name",
+            "carrier_match",
+            "carrier_source_text",
+            "gt_scac",
+            f"{eng}_scac",
+            "scac_match",
+            "scac_source_text",
+            "gt_mode",
+            f"{eng}_mode",
+            "mode_match",
+            "mode_source_text",
+            "gt_effective_date",
+            f"{eng}_effective_date",
+            "effective_date_match",
+            "effective_date_source_text",
+            "gt_end_date",
+            f"{eng}_end_date",
+            "end_date_match",
+            "end_date_source_text",
+            "exact_rate",
+            "fuzzy_rate",
+            "tables_extracted",
+        ]
+
+        with eng_csv.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+
+            for doc_stem in sorted(doc_rows.keys()):
+                info = doc_rows[doc_stem]
+                eng_info = info["engines"].get(eng, {})
+                row: list[Any] = [doc_stem, info["category"]]
+
+                for fld in META_FIELDS:
+                    gt_val = info["gt"].get(fld) or ""
+                    ext_val = eng_info.get(f"{fld}_extracted") or ""
+                    source = eng_info.get(f"{fld}_source") or ""
+                    exact = eng_info.get(f"{fld}_exact", False)
+                    fuzzy_sc = eng_info.get(f"{fld}_fuzzy", 0.0)
+                    match = _match_label(gt_val, exact, fuzzy_sc, ext_val)
+                    row.extend([gt_val, ext_val, match, source])
+
+                exact_rate = eng_info.get("exact_rate")
+                fuzzy_rate = eng_info.get("fuzzy_rate")
+                row.append(f"{exact_rate:.1%}" if exact_rate is not None else "N/A")
+                row.append(f"{fuzzy_rate:.1%}" if fuzzy_rate is not None else "N/A")
+                row.append(eng_info.get("tables_extracted", 0))
+
+                writer.writerow(row)
+
+        print(f"  Per-engine CSV: {eng_csv}")
+
+    # --- Combined comparison CSV (all engines side by side) ---
+    combined_headers = ["file_name", "category"]
     for f in META_FIELDS:
-        headers.append(f"gt_{f}")
+        combined_headers.append(f"gt_{f}")
     for eng in engine_names:
         for f in META_FIELDS:
-            headers.append(f"{eng}_{f}_extracted")
-            headers.append(f"{eng}_{f}_match")
-        headers.append(f"{eng}_exact_rate")
-        headers.append(f"{eng}_fuzzy_rate")
-        headers.append(f"{eng}_tables_extracted")
+            combined_headers.append(f"{eng}_{f}")
+            combined_headers.append(f"{eng}_{f}_match")
+        combined_headers.append(f"{eng}_exact_rate")
+        combined_headers.append(f"{eng}_fuzzy_rate")
+        combined_headers.append(f"{eng}_tables")
 
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(headers)
+        writer.writerow(combined_headers)
 
         for doc_stem in sorted(doc_rows.keys()):
             info = doc_rows[doc_stem]
@@ -798,18 +938,12 @@ def _write_evaluation_csv(
             for eng in engine_names:
                 eng_info = info["engines"].get(eng, {})
                 for fld in META_FIELDS:
-                    extracted = eng_info.get(f"{fld}_extracted")
+                    gt_val = info["gt"].get(fld) or ""
+                    ext_val = eng_info.get(f"{fld}_extracted") or ""
                     exact = eng_info.get(f"{fld}_exact", False)
-                    fuzzy = eng_info.get(f"{fld}_fuzzy", 0.0)
-                    row.append(extracted or "")
-                    if exact:
-                        row.append("EXACT")
-                    elif fuzzy >= 0.8:
-                        row.append("FUZZY")
-                    elif extracted:
-                        row.append("PARTIAL")
-                    else:
-                        row.append("MISS")
+                    fuzzy_sc = eng_info.get(f"{fld}_fuzzy", 0.0)
+                    row.append(ext_val)
+                    row.append(_match_label(gt_val, exact, fuzzy_sc, ext_val))
 
                 exact_rate = eng_info.get("exact_rate")
                 fuzzy_rate = eng_info.get("fuzzy_rate")
