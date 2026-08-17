@@ -10,6 +10,7 @@ from engines import OCRRegion, TableResult
 
 def parse_layout_response(
     body: dict[str, Any],
+    page_offset: int = 0,
 ) -> tuple[list[OCRRegion], list[TableResult]]:
     regions: list[OCRRegion] = []
     tables: list[TableResult] = []
@@ -18,7 +19,7 @@ def parse_layout_response(
     layout_details = body.get("layout_details") or []
 
     for page_idx, page_blocks in enumerate(layout_details):
-        page_num = page_idx + 1
+        page_num = page_offset + page_idx + 1
         if not isinstance(page_blocks, list):
             continue
 
@@ -63,7 +64,7 @@ def parse_layout_response(
         md = body.get("md_results", "")
         if md:
             regions.append(
-                OCRRegion(page=1, text=md, bbox=[0, 0, 0, 0], confidence=1.0)
+                OCRRegion(page=page_offset + 1, text=md, bbox=[0, 0, 0, 0], confidence=1.0)
             )
             for tbl in _extract_md_tables(md):
                 tables.append(tbl)
