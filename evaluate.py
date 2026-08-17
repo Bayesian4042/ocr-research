@@ -666,7 +666,13 @@ def main() -> None:
             cat_scores: list[dict[str, Any]] = []
 
             for doc_stem, result_path in doc_results.items():
-                result_data = json.loads(result_path.read_text(encoding="utf-8"))
+                try:
+                    result_data = json.loads(result_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, MemoryError, OSError) as exc:
+                    print(
+                        f"    SKIP {doc_stem}: corrupt result ({exc.__class__.__name__})"
+                    )
+                    continue
 
                 gt_key = sanitize_filename(doc_stem)
                 gt = gt_data.get(gt_key, {})
