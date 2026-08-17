@@ -5,6 +5,7 @@ description = "OCR benchmark suite for metadata and table extraction"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "mistralai>=2.9.3",
     "numpy",
     "paddleocr>=3.7",
     "paddlepaddle",

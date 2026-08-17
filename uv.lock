@@ -1541,6 +1541,7 @@ name = "ocr-research"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "mistralai" },
     { name = "numpy" },
     { name = "paddleocr" },
     { name = "paddlepaddle" },
@@ -1598,6 +1599,7 @@ requires-dist = [
     { name = "azure-core", marker = "extra == 'all'" },
     { name = "azure-core", marker = "extra == 'azure'" },
     { name = "azure-core", marker = "extra == 'cloud'" },
+    { name = "mistralai", specifier = ">=2.9.3" },
     { name = "mistralai", marker = "extra == 'all'" },
     { name = "mistralai", marker = "extra == 'cloud'" },
     { name = "mistralai", marker = "extra == 'mistral'" },
