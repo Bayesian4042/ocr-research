@@ -117,12 +117,14 @@ def run_engine(
         "cost_provider": None,
     }
 
+    doc_global_idx = 0
     for category, pdf_paths in pdfs_by_category.items():
         cat_results: list[dict[str, Any]] = []
 
-        for doc_idx, pdf_path in enumerate(pdf_paths):
-            if delay > 0 and doc_idx > 0:
+        for pdf_path in pdf_paths:
+            if delay > 0 and doc_global_idx > 0:
                 time.sleep(delay)
+            doc_global_idx += 1
 
             doc_stem = pdf_path.stem
             print(f"    [{engine.name}] {category}/{doc_stem}")
