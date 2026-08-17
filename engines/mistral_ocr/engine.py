@@ -19,7 +19,10 @@ class MistralOCREngine(BaseEngine):
     name = "mistral"
 
     def __init__(self) -> None:
-        from mistralai import Mistral
+        try:
+            from mistralai.client import Mistral
+        except ImportError:
+            from mistralai import Mistral
 
         self._client = Mistral(api_key=os.environ["MISTRAL_API_KEY"])
         self._batch = os.environ.get("MISTRAL_OCR_BATCH", "").lower() in (
