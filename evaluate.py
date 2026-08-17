@@ -11,6 +11,7 @@ import csv
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -204,8 +205,7 @@ def score_metadata(
 
         engine_value = engine_meta.get(field)
         if engine_value is None:
-            # Try to find the value in OCR text
-            engine_value = _search_in_regions(engine_result, str(gt_value))
+            engine_value = _search_in_regions(engine_result, str(gt_value), field)
 
         if engine_value is not None:
             exact = _normalize(str(engine_value)) == _normalize(str(gt_value))
@@ -326,13 +326,90 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.strip().lower())
 
 
+# Date formats to try when parsing GT and OCR dates
+_DATE_FORMATS = [
+    "%m.%d.%Y",    # 11.29.2022
+    "%m/%d/%Y",    # 11/29/2022
+    "%m-%d-%Y",    # 11-29-2022
+    "%m.%d.%y",    # 11.29.22
+    "%m/%d/%y",    # 11/29/22
+    "%B %d, %Y",   # November 29, 2022
+    "%b %d, %Y",   # Nov 29, 2022
+    "%b. %d, %Y",  # Nov. 29, 2022
+    "%d %B %Y",    # 29 November 2022
+    "%d %b %Y",    # 29 Nov 2022
+    "%Y-%m-%d",    # 2022-11-29
+    "%Y/%m/%d",    # 2022/11/29
+    "%m.%d.%Y",    # 04.15.2023
+]
+
+_MONTH_NAMES = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8,
+    "september": 9, "october": 10, "november": 11, "december": 12,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4,
+    "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9,
+    "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def _parse_date(text: str) -> datetime | None:
+    """Try to parse a date string in various formats."""
+    cleaned = text.strip().rstrip(".")
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(cleaned, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _extract_dates_from_text(text: str) -> list[datetime]:
+    """Extract all recognizable dates from a block of text."""
+    dates: list[datetime] = []
+
+    # Numeric patterns: M/D/YYYY, M.D.YYYY, M-D-YYYY, YYYY-MM-DD
+    for m in re.finditer(
+        r"\b(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})\b", text
+    ):
+        parsed = _parse_date(m.group(0))
+        if parsed:
+            dates.append(parsed)
+
+    for m in re.finditer(r"\b(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})\b", text):
+        parsed = _parse_date(m.group(0))
+        if parsed:
+            dates.append(parsed)
+
+    # Named months: "November 29, 2022", "Nov 29, 2022", "29 November 2022"
+    month_pat = "|".join(_MONTH_NAMES.keys())
+    for m in re.finditer(
+        rf"\b({month_pat})\.?\s+(\d{{1,2}}),?\s+(\d{{4}})\b", text, re.IGNORECASE
+    ):
+        parsed = _parse_date(m.group(0))
+        if parsed:
+            dates.append(parsed)
+
+    for m in re.finditer(
+        rf"\b(\d{{1,2}})\s+({month_pat})\.?\s+(\d{{4}})\b", text, re.IGNORECASE
+    ):
+        parsed = _parse_date(m.group(0))
+        if parsed:
+            dates.append(parsed)
+
+    return dates
+
+
+def _is_date_field(field_name: str) -> bool:
+    return "date" in field_name.lower()
+
+
 def _fuzzy_score(a: str, b: str) -> float:
     """Normalized similarity between two strings."""
     try:
         from rapidfuzz import fuzz
         return fuzz.ratio(_normalize(a), _normalize(b)) / 100.0
     except ImportError:
-        # Fallback: simple containment check
         na, nb = _normalize(a), _normalize(b)
         if na == nb:
             return 1.0
@@ -341,13 +418,38 @@ def _fuzzy_score(a: str, b: str) -> float:
         return 0.0
 
 
-def _search_in_regions(result: dict[str, Any], target: str) -> str | None:
+def _search_date_in_regions(
+    result: dict[str, Any], gt_date_str: str
+) -> str | None:
+    """Search for a date value in OCR regions using date normalization."""
+    gt_date = _parse_date(gt_date_str)
+    if gt_date is None:
+        return None
+
+    regions = result.get("regions", [])
+    for region in regions:
+        text = region.get("text", "")
+        found_dates = _extract_dates_from_text(text)
+        for d in found_dates:
+            if d.date() == gt_date.date():
+                return gt_date_str
+    return None
+
+
+def _search_in_regions(
+    result: dict[str, Any], target: str, field_name: str = ""
+) -> str | None:
     """Search for a target string in OCR regions.
 
+    For date fields, uses date normalization to match across formats.
     Returns the target value itself if found (not the full region), so that
-    exact-match scoring works correctly. For fuzzy matching, also checks for
-    close substring matches.
+    exact-match scoring works correctly.
     """
+    if _is_date_field(field_name):
+        date_match = _search_date_in_regions(result, target)
+        if date_match is not None:
+            return date_match
+
     target_norm = _normalize(target)
     regions = result.get("regions", [])
 
