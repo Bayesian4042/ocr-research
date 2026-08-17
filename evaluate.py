@@ -337,14 +337,35 @@ def _fuzzy_score(a: str, b: str) -> float:
 
 
 def _search_in_regions(result: dict[str, Any], target: str) -> str | None:
-    """Search for a target string in OCR regions."""
+    """Search for a target string in OCR regions.
+
+    Returns the target value itself if found (not the full region), so that
+    exact-match scoring works correctly. For fuzzy matching, also checks for
+    close substring matches.
+    """
     target_norm = _normalize(target)
     regions = result.get("regions", [])
 
+    best_match: str | None = None
+    best_score = 0.0
+
     for region in regions:
         text = region.get("text", "")
-        if target_norm in _normalize(text):
-            return text
+        text_norm = _normalize(text)
+
+        if target_norm == text_norm:
+            return target
+
+        if target_norm in text_norm:
+            return target
+
+        score = _fuzzy_score(target, text)
+        if score > best_score:
+            best_score = score
+            best_match = text
+
+    if best_score >= 0.6:
+        return best_match
 
     return None
 
@@ -535,6 +556,27 @@ def main() -> None:
             f"  Tables header acc: {_fmt(overall['table_header_accuracy'])}, "
             f"row count acc: {_fmt(overall['table_row_count_accuracy'])}"
         )
+
+        for category, cat_scores in engine_scorecard["categories"].items():
+            for doc_score in cat_scores:
+                meta = doc_score["metadata"]
+                scorable = meta["total_fields"] - meta["missing_gt"]
+                print(
+                    f"    {category}/{doc_score['document']}: "
+                    f"exact={meta['exact_matches']}/{scorable}, "
+                    f"fuzzy={meta['fuzzy_matches']}/{scorable}, "
+                    f"tables_gt={doc_score['tables']['gt_table_count']}, "
+                    f"tables_ext={doc_score['tables']['extracted_table_count']}"
+                )
+                for field, detail in meta["fields"].items():
+                    if detail.get("status") == "no_ground_truth":
+                        continue
+                    mark = "OK" if detail.get("exact_match") else "MISS"
+                    print(
+                        f"      {field}: gt={detail.get('gt')!r} "
+                        f"ext={detail.get('extracted')!r} "
+                        f"fuzzy={detail.get('fuzzy_score', 0):.2f} [{mark}]"
+                    )
         print()
 
     # Write comparison summary
