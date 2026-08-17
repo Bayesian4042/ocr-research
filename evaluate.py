@@ -690,6 +690,11 @@ def main() -> None:
     comparison = _build_comparison(all_scorecards)
     write_json(args.output / "comparison.json", comparison)
 
+    # Write detailed evaluation CSV
+    csv_path = args.output / "evaluation_results.csv"
+    _write_evaluation_csv(csv_path, all_scorecards, gt_data, engine_names)
+    print(f"Evaluation CSV saved to: {csv_path}")
+
     print("Evaluation complete. Results saved to:", args.output)
 
 
@@ -716,6 +721,103 @@ def _build_comparison(scorecards: list[dict[str, Any]]) -> dict[str, Any]:
         "best_table_headers": _best_engine(rows, "table_header_accuracy"),
         "best_table_rows": _best_engine(rows, "table_row_count_accuracy"),
     }
+
+
+def _write_evaluation_csv(
+    csv_path: Path,
+    scorecards: list[dict[str, Any]],
+    gt_data: dict[str, dict[str, Any]],
+    engine_names: list[str],
+) -> None:
+    """Write a detailed CSV with per-file GT metadata and per-engine accuracy."""
+    META_FIELDS = ["carrier_name", "scac", "mode", "effective_date", "end_date"]
+
+    # Collect all evaluated documents across engines
+    # {doc_stem: {category, gt_fields, engine_scores}}
+    doc_rows: dict[str, dict[str, Any]] = {}
+
+    for sc in scorecards:
+        engine = sc["engine"]
+        for category, cat_scores in sc.get("categories", {}).items():
+            for doc_score in cat_scores:
+                doc_stem = doc_score["document"]
+                if doc_stem not in doc_rows:
+                    gt_key = sanitize_filename(doc_stem)
+                    gt = gt_data.get(gt_key, {})
+                    gt_meta = gt.get("metadata", {})
+                    doc_rows[doc_stem] = {
+                        "category": category,
+                        "gt": {f: gt_meta.get(f) for f in META_FIELDS},
+                        "engines": {},
+                    }
+
+                meta = doc_score["metadata"]
+                fields = meta.get("fields", {})
+                engine_info: dict[str, Any] = {}
+                for f in META_FIELDS:
+                    detail = fields.get(f, {})
+                    engine_info[f"{f}_extracted"] = detail.get("extracted")
+                    engine_info[f"{f}_exact"] = detail.get("exact_match", False)
+                    engine_info[f"{f}_fuzzy"] = detail.get("fuzzy_score", 0.0)
+
+                scorable = meta["total_fields"] - meta["missing_gt"]
+                engine_info["exact_rate"] = (
+                    meta["exact_matches"] / scorable if scorable > 0 else None
+                )
+                engine_info["fuzzy_rate"] = (
+                    meta["fuzzy_matches"] / scorable if scorable > 0 else None
+                )
+                engine_info["tables_extracted"] = doc_score["tables"]["extracted_table_count"]
+
+                doc_rows[doc_stem]["engines"][engine] = engine_info
+
+    # Build CSV headers
+    headers = ["file_name", "category"]
+    for f in META_FIELDS:
+        headers.append(f"gt_{f}")
+    for eng in engine_names:
+        for f in META_FIELDS:
+            headers.append(f"{eng}_{f}_extracted")
+            headers.append(f"{eng}_{f}_match")
+        headers.append(f"{eng}_exact_rate")
+        headers.append(f"{eng}_fuzzy_rate")
+        headers.append(f"{eng}_tables_extracted")
+
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+
+        for doc_stem in sorted(doc_rows.keys()):
+            info = doc_rows[doc_stem]
+            row: list[Any] = [doc_stem, info["category"]]
+
+            for fld in META_FIELDS:
+                row.append(info["gt"].get(fld) or "")
+
+            for eng in engine_names:
+                eng_info = info["engines"].get(eng, {})
+                for fld in META_FIELDS:
+                    extracted = eng_info.get(f"{fld}_extracted")
+                    exact = eng_info.get(f"{fld}_exact", False)
+                    fuzzy = eng_info.get(f"{fld}_fuzzy", 0.0)
+                    row.append(extracted or "")
+                    if exact:
+                        row.append("EXACT")
+                    elif fuzzy >= 0.8:
+                        row.append("FUZZY")
+                    elif extracted:
+                        row.append("PARTIAL")
+                    else:
+                        row.append("MISS")
+
+                exact_rate = eng_info.get("exact_rate")
+                fuzzy_rate = eng_info.get("fuzzy_rate")
+                row.append(f"{exact_rate:.1%}" if exact_rate is not None else "N/A")
+                row.append(f"{fuzzy_rate:.1%}" if fuzzy_rate is not None else "N/A")
+                row.append(eng_info.get("tables_extracted", 0))
+
+            writer.writerow(row)
 
 
 def _best_engine(rows: list[dict[str, Any]], metric: str) -> str | None:
