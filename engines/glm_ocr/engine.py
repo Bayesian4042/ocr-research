@@ -66,16 +66,17 @@ class GlmOCREngine(BaseEngine):
             resp.raise_for_status()
             body = resp.json()
         except requests.HTTPError as exc:
-            error_text = exc.response.text if exc.response is not None else str(exc)
+            status = exc.response.status_code if exc.response is not None else "?"
+            try:
+                error_body = exc.response.json() if exc.response is not None else {}
+                error_text = error_body.get("error", {}).get("message", "") or exc.response.text
+            except Exception:
+                error_text = exc.response.text if exc.response is not None else str(exc)
             result.errors.append(
                 {
                     "page": 0,
                     "stage": "api",
-                    "error": (
-                        f"HTTP {exc.response.status_code}: {error_text}"
-                        if exc.response
-                        else str(exc)
-                    ),
+                    "error": f"HTTP {status}: {error_text}",
                 }
             )
             result.timing = {"total_s": time.perf_counter() - t0}
